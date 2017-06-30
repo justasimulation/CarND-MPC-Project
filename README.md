@@ -1,7 +1,103 @@
 # CarND-Controls-MPC
-Self-Driving Car Engineer Nanodegree Program
-
 ---
+
+## Model
+
+The kinematic model is used.
+
+The state consists of the following:
+```
+* x - coordinate
+* y - coordinate
+* v - velocity
+* psi - orientation
+```
+
+Actuators are:
+
+```
+* steering angle - its value is can be read and set directly
+* throttle - althogh its value can be read and set it is not clear what it means in this
+context and how it is related to acceleration, so some approximation of the relation is needed
+```
+
+Transition equations:
+
+```
+* x = x + v * cos(psi) * dt
+* y = y + v * sin(psi) * dt
+* v = v + acceleration * dt
+* psi = psi + v * steering_angle / Lf * dt
+* orientation
+```
+
+Where 
+* Lf - is distance between the car from and its center of gravity
+* acceleration - real acceleration of the car which is not perceived directly by any device in this set
+* dt - time step length
+
+
+## Units and conversions
+
+* Velocity is provided as miles per hour and converted into meters per second
+* Steering angle is limited to [-25 degree; 25 degree] and is perceived in radians,
+but when setting the actuator's value it is needed to convert it into [-1; 1] interval.
+* Throttle value is limited to [-1; 1]. I change speed and acceleration using throttle,
+ but it is not clear how they are related. I use the following approximation: it is assumed
+ that the maximum throttle 1 gives us 4 meters per second per second of acceleration, so
+  we limit acceleration value by [-4; 4] and map to to throttle interval. This approximation
+  is almost always false, but probably because the problem is resolved several times per second
+  it still works.
+  
+  
+## Timestep length and elapsed duration (N and dt)
+
+* N - is chosen so the predicted trajectory would be approximately the same size as the target line,
+in case of linear motion with constant speed between waypoints. I observed that in case of large N sometimes
+predicted trajectory becomes much longer than the target line and the result of optimization looks realy bad.
+So the equations is
+
+```
+N = waypoints_length / (v * dt)
+```
+Where v is current speed
+
+* dt - is chosen 0.05 seconds. This part is not clear for me. My idea was to choose dt the same as it is in the simulator,
+in other words dt would be a time between setting actuators values. 
+On my laptop this time is 0.14-0.2 seconds (including latency emulation), but for some reasons it works
+considerably worse than 0.05. Either there is an error or my laptop is too slow for this.
+
+
+## Polynomial fitting, preprocessing and latency
+
+* First latency is simulated by applying motion equations to the initial state given by telemetry. Also the average execution
+time of the method is added to the latency time, so I try try to predict the state at the time right after the method is executed.
+
+```
+dt = latency_time + method_execution_time
+```
+
+ 
+* After latency simulation all coordinates are converted into car's coordinate system and 3rd order polynomial is fitted.
+
+## Results
+
+The submitted result works on my laptop at approximately 57 mph. I was able to drive much faster but that looked
+a bit unstable and as I use a slow laptop it is always a mystery whether there is an error or my hardware is just not good enough.
+So I decided to use a slow more stable version.
+
+I noticed when driving more than 60 mph it is required to calculate curvature and break when curvature to speed ratio is to large, 
+using that it is possible to drive more than 100 mph. I guess that dynamic model can automatically handle this curvature situation.
+
+
+## Reflections
+
+* It is much better than PID for sure.
+* Throttle acceleration connection is not clear (even for guys that did QA on this project)
+* Sometimes the optimizer shows really weird results (may be it returns some error code about that, need to check)
+* Need to control speed curvature ratio (probably dynamic models could do this automatically)
+
+
 
 ## Dependencies
 
@@ -49,67 +145,3 @@ Self-Driving Car Engineer Nanodegree Program
 2. Make a build directory: `mkdir build && cd build`
 3. Compile: `cmake .. && make`
 4. Run it: `./mpc`.
-
-## Tips
-
-1. It's recommended to test the MPC on basic examples to see if your implementation behaves as desired. One possible example
-is the vehicle starting offset of a straight line (reference). If the MPC implementation is correct, after some number of timesteps
-(not too many) it should find and track the reference line.
-2. The `lake_track_waypoints.csv` file has the waypoints of the lake track. You could use this to fit polynomials and points and see of how well your model tracks curve. NOTE: This file might be not completely in sync with the simulator so your solution should NOT depend on it.
-3. For visualization this C++ [matplotlib wrapper](https://github.com/lava/matplotlib-cpp) could be helpful.
-
-## Editor Settings
-
-We've purposefully kept editor configuration files out of this repo in order to
-keep it as simple and environment agnostic as possible. However, we recommend
-using the following settings:
-
-* indent using spaces
-* set tab width to 2 spaces (keeps the matrices in source code aligned)
-
-## Code Style
-
-Please (do your best to) stick to [Google's C++ style guide](https://google.github.io/styleguide/cppguide.html).
-
-## Project Instructions and Rubric
-
-Note: regardless of the changes you make, your project must be buildable using
-cmake and make!
-
-More information is only accessible by people who are already enrolled in Term 2
-of CarND. If you are enrolled, see [the project page](https://classroom.udacity.com/nanodegrees/nd013/parts/40f38239-66b6-46ec-ae68-03afd8a601c8/modules/f1820894-8322-4bb3-81aa-b26b3c6dcbaf/lessons/b1ff3be0-c904-438e-aad3-2b5379f0e0c3/concepts/1a2255a0-e23c-44cf-8d41-39b8a3c8264a)
-for instructions and the project rubric.
-
-## Hints!
-
-* You don't have to follow this directory structure, but if you do, your work
-  will span all of the .cpp files here. Keep an eye out for TODOs.
-
-## Call for IDE Profiles Pull Requests
-
-Help your fellow students!
-
-We decided to create Makefiles with cmake to keep this project as platform
-agnostic as possible. Similarly, we omitted IDE profiles in order to we ensure
-that students don't feel pressured to use one IDE or another.
-
-However! I'd love to help people get up and running with their IDEs of choice.
-If you've created a profile for an IDE that you think other students would
-appreciate, we'd love to have you add the requisite profile files and
-instructions to ide_profiles/. For example if you wanted to add a VS Code
-profile, you'd add:
-
-* /ide_profiles/vscode/.vscode
-* /ide_profiles/vscode/README.md
-
-The README should explain what the profile does, how to take advantage of it,
-and how to install it.
-
-Frankly, I've never been involved in a project with multiple IDE profiles
-before. I believe the best way to handle this would be to keep them out of the
-repo root to avoid clutter. My expectation is that most profiles will include
-instructions to copy files to a new location to get picked up by the IDE, but
-that's just a guess.
-
-One last note here: regardless of the IDE used, every submitted project must
-still be compilable with cmake and make./
